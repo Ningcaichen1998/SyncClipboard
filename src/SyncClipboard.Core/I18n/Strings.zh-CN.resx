@@ -1025,6 +1025,12 @@ Shift + 左键：选中连续范围</value>
   <data name="PreciseDeleteDescription" xml:space="preserve">
     <value>启用后，删除临时文件时将先查询所有临时文件然后逐个删除</value>
   </data>
+  <data name="EnableHistoryArchive" xml:space="preserve">
+    <value>归档剪贴板历史</value>
+  </data>
+  <data name="EnableHistoryArchiveDescription" xml:space="preserve">
+    <value>将每一条复制内容追加保存到按天轮转的 SyncClipboard-YYYYMMDD.json 文件（每个文件最多 1000 条）</value>
+  </data>
   <data name="TestConnection" xml:space="preserve">
     <value>测试连接</value>
   </data>

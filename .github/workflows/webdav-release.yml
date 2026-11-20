@@ -1,0 +1,134 @@
+name: webdav-release
+
+permissions:
+  contents: write
+
+on:
+  # 手动触发：强制同步上游并构建发布
+  workflow_dispatch:
+  # 定时触发：每 6 小时检查一次上游是否有更新
+  schedule:
+    - cron: '23 */6 * * *'
+  # 直接 push 到 webdav-archive 分支：立即构建发布（不额外同步上游）
+  push:
+    branches:
+      - webdav-archive
+
+jobs:
+  build-and-release:
+    runs-on: windows-2025-vs2026
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: webdav-archive
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # 定时/手动触发时，尝试把上游 master 合并进本分支，实现"原版更新自动跟进"。
+      # push 触发时跳过（push 的代码已是最新，无需再同步）。
+      - name: Sync upstream master
+        id: sync
+        if: github.event_name != 'push'
+        shell: bash
+        run: |
+          git remote add upstream https://github.com/Jeric-X/SyncClipboard.git
+          git fetch upstream master
+          if git merge-base --is-ancestor upstream/master HEAD; then
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream has no new commits."
+          else
+            git merge upstream/master --no-edit -m "chore: merge upstream master"
+            echo "updated=true" >> "$GITHUB_OUTPUT"
+            echo "Merged upstream master."
+          fi
+
+      # 把合并结果保存回分支，供下次运行继续增量同步。
+      - name: Push merged branch
+        if: steps.sync.outputs.updated == 'true'
+        run: git push origin webdav-archive
+
+      # 读取当前源码版本号（跟随上游 Directory.Build.props）
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          PREFIX=$(grep -oP '(?<=<VersionPrefix>)[^<]+' src/Directory.Build.props)
+          SUFFIX=$(grep -oP '(?<=<VersionSuffix>)[^<]+' src/Directory.Build.props)
+          if [ -n "$SUFFIX" ]; then VERSION="$PREFIX-$SUFFIX"; else VERSION="$PREFIX"; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VERSION"
+
+      # 构建条件：push / 手动触发 / 定时且上游有更新
+      - name: Setup .NET
+        if: github.event_name != 'schedule' || steps.sync.outputs.updated == 'true'
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Setup MSBuild
+        if: github.event_name != 'schedule' || steps.sync.outputs.updated == 'true'
+        uses: microsoft/setup-msbuild@v3
+        with:
+          msbuild-architecture: x64
+
+      - name: Build SyncClipboard.WinUI3
+        if: github.event_name != 'schedule' || steps.sync.outputs.updated == 'true'
+        run: >
+          msbuild
+          src\SyncClipboard.WinUI3\SyncClipboard.WinUI3.csproj
+          /p:Platform=x64
+          /p:RuntimeIdentifier=win-x64
+          /p:Configuration=Release
+          /p:WindowsAppSDKSelfContained=true
+          /p:SelfContained=true
+          /v:m -restore
+
+      - name: Copy build output
+        if: github.event_name != 'schedule' || steps.sync.outputs.updated == 'true'
+        run: xcopy src\SyncClipboard.WinUI3\bin\x64\Release\net10.0-windows10.0.19041.0\win-x64 WinUI3\ /s /e
+
+      - name: Install InnoSetup
+        if: github.event_name != 'schedule' || steps.sync.outputs.updated == 'true'
+        run: choco install innosetup -y --no-progress
+
+      - name: Package installer
+        if: github.event_name != 'schedule' || steps.sync.outputs.updated == 'true'
+        shell: powershell
+        run: |
+          & powershell -File ".\build\windows\CreateInstaller.ps1" `
+            -SourceFolder ".\WinUI3" `
+            -Version "${{ steps.version.outputs.version }}" `
+            -OutputFolder "." `
+            -TargetArch "x64"
+          Get-ChildItem "*.exe" | Select-Object Name, Length
+
+      - name: Upload installer artifact
+        if: github.event_name != 'schedule' || steps.sync.outputs.updated == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: SyncClipboard_win_x64_installer
+          path: SyncClipboard-${{ steps.version.outputs.version }}-installer.exe
+
+      - name: Publish release
+        if: github.event_name != 'schedule' || steps.sync.outputs.updated == 'true'
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ steps.version.outputs.version }}-webdav
+          name: "SyncClipboard ${{ steps.version.outputs.version }} WebDAV 归档版"
+          body: |
+            带「剪贴板历史 WebDAV 每日归档」功能的版本。
+            - 每条复制内容按天归档到 WebDAV：SyncClipboard-YYYYMMDD.json
+            - 每个文件最多 1000 条，次日自动换新文件
+            - 文件/图片类型同时上传附件
+
+            本 release 由 GitHub Actions 自动构建：当上游 SyncClipboard 更新时自动跟进合并并重新发布。
+          draft: false
+          prerelease: false
+          allowUpdates: true
+          artifacts: SyncClipboard-${{ steps.version.outputs.version }}-installer.exe

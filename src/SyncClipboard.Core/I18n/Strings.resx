@@ -1025,6 +1025,12 @@ This operation cannot be undone.</value>
   <data name="PreciseDeleteDescription" xml:space="preserve">
     <value>When enabled, temporary files will be queried first and then deleted one by one</value>
   </data>
+  <data name="EnableHistoryArchive" xml:space="preserve">
+    <value>Archive Clipboard History</value>
+  </data>
+  <data name="EnableHistoryArchiveDescription" xml:space="preserve">
+    <value>Append every copied item to a daily file SyncClipboard-YYYYMMDD.json (up to 1000 records per file)</value>
+  </data>
   <data name="TestConnection" xml:space="preserve">
     <value>Test Connection</value>
   </data>

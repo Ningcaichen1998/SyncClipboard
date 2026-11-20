@@ -493,6 +493,8 @@ namespace SyncClipboard.Core
             services.AddSingleton<IService, DownloadService>(sp => sp.GetRequiredService<DownloadService>());
             services.AddSingleton<HistoryService>();
             services.AddSingleton<IService, HistoryService>(sp => sp.GetRequiredService<HistoryService>());
+            services.AddSingleton<WebDavHistoryArchiveService>();
+            services.AddSingleton<IService, WebDavHistoryArchiveService>(sp => sp.GetRequiredService<WebDavHistoryArchiveService>());
             services.AddSingleton<NetworkAccountSwitchService>();
             services.AddSingleton<IService>(sp => sp.GetRequiredService<NetworkAccountSwitchService>());
             services.AddSingleton<HotkeyBlacklistService>();

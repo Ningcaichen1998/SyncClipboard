@@ -25,6 +25,9 @@ public record WebDavConfig : IAdapterConfig<WebDavConfig>
     [PropertyDisplay("PreciseDelete", Description = "PreciseDeleteDescription")]
     public bool PreciseDelete { get; set; } = false;
 
+    [PropertyDisplay("EnableHistoryArchive", Description = "EnableHistoryArchiveDescription")]
+    public bool EnableHistoryArchive { get; set; } = true;
+
     public string CustomName { get; set; } = string.Empty;
 
     [JsonIgnore]
